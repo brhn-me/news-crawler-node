@@ -1,12 +1,11 @@
 var sanitizeHtml = require("sanitize-html");
-const crypto = require('crypto');
 
 const prothomAloPaser = (link, $) => {
-    console.log(link.href);
+    var data = false;
     if (link.pathname.includes("article")) {
         var title = $('.detail h1.title').text().trim();
         var dateEl = $('.detail .time span')[0];
-        var date =  $(dateEl).attr('content');
+        var date = $(dateEl).attr('content');
         var contentHtml = $('article.content').html();
         contentHtml = sanitizeHtml(contentHtml);
         var content = $(contentHtml).text().trim();
@@ -31,21 +30,15 @@ const prothomAloPaser = (link, $) => {
             images.push($(el).attr('src'));
         });
 
-        var id = crypto.createHash('md5').update(link.href).digest("hex")
-
-
-        var data = {
-            id: id,
-            url: link.href,
-            source: link.host,
+        data = {
             date: date,
             title: title,
             content: content,
             tags: tags,
             images: images
         };
-        console.log(data);
     }
+    return data;
 };
 
 module.exports = prothomAloPaser;

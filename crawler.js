@@ -1,35 +1,51 @@
-var Crawler = require('crawler');
-var url = require('url');
-var normalizeUrl = require('normalize-url');
+const Crawler = require('crawler');
+const url = require('url');
+const path = require('path');
+const fs = require('fs');
+const normalizeUrl = require('normalize-url');
+// const dateFormat = require('date-format');
+const mongoose = require('mongoose');
+const utils = require('./utils');
+const db = require('./db');
+// const queue = require('./queue');
+// const Link = require('./models/link');
+const News = require('./models/news');
 
-var prothomAloPaser = require('./parsers/prothomalo');
 
-var crawler;
-var visited = new Set([]);
-var queue = new Set([]);
+const MAX_DEPTH = 3;
+const prothomAloPaser = require('./parsers/prothomalo');
+const seeds = ['https://www.prothomalo.com', 'https://bangla.bdnews24.com'];
 
-var valid_hosts = new Set(['www.prothomalo.com']);
+const valid_hosts = new Set(['www.prothomalo.com']);
 
-var parsers = {
+const parsers = {
     "www.prothomalo.com": prothomAloPaser
 };
 
+let visited = new Set([]);
+let queue = new Set([]);
+let newsCount = 0;
 
 function addToQueue(links, depth) {
     var n = 0;
     for (let link of links) {
-        if (!queue.has(link) || !visited.has(link)) {
+        let id = utils.md5(link);
+        if (!queue.has(link) && !visited.has(link)) {
             queue.add(link);
             crawler.queue({
+                id: id,
                 uri: link,
-                depth: depth
+                depth: depth,
+                priority: depth
             });
             n++;
         }
     }
-    console.log(`Enqueued: ${n}, Depth: ${depth}`);
+
+    // saveQueue();
+
     const used = process.memoryUsage().heapUsed / 1024 / 1024;
-    console.log(`The script uses approximately ${Math.round(used * 100) / 100} MB`);
+    console.log(`Enqueued: ${n}, Depth: ${depth}, Queue: ${queue.size}, Visited: ${visited.size}, News: ${newsCount} Memory: ${Math.round(used * 100) / 100} MB`);
 }
 
 function setVisited(link) {
@@ -52,31 +68,120 @@ function getUniqueLinks(current_link, $) {
     return Array.from(links);
 }
 
-function onCrawl(error, res, done) {
-    var currentLink = new URL(this.uri);
-    var depth = res.options.depth;
-    if (error) {
-        console.log(error)
-    } else {
-        var links = getUniqueLinks(currentLink, res.$);
-        if (depth < 3) {
-            addToQueue(links, depth + 1);
-        }
-
-        if (parsers[currentLink.host]) {
-            var parser = parsers[currentLink.host];
-            var data = parser(currentLink, res.$);
-        }
-    }
-    done();
-}
-
-crawler = new Crawler({
+const crawler = new Crawler({
     rateLimit: 1000,
     maxConnections: 5,
     userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
-    callback: onCrawl
+    callback: function (error, res, done) {
+        console.log(this.uri);
+        const currentLink = new URL(this.uri);
+        const depth = res.options.depth;
+        const id = res.options.id;
+
+        if (error) {
+            console.log(error)
+        } else {
+            const links = getUniqueLinks(currentLink, res.$);
+            if (depth < MAX_DEPTH) {
+                addToQueue(links, depth + 1);
+            }
+
+            if (parsers[currentLink.host]) {
+                const parser = parsers[currentLink.host];
+                const data = parser(currentLink, res.$);
+                if (data) {
+                    data.id = utils.md5(currentLink.href);
+                    data.url = currentLink.href;
+                    data.source = currentLink.host;
+                    News.findOneAndUpdate({"id": id}, data, {upsert: true}, function (err, doc) {
+                        if (err) {
+                            console.log(err);
+                            return;
+                        }
+                        setVisited(this.uri);
+                        newsCount++;
+                    });
+                } else {
+                    setVisited(this.uri);
+                }
+            }
+        }
+        done();
+    }
 });
 
 
-addToQueue(['https://www.prothomalo.com'], 0);
+// function saveQueue() {
+//     var filename = path.join("queue.json");
+//     fs.writeFileSync(filename, JSON.stringify(queue, null, 4));
+// }
+//
+// function loadQueue() {
+//     let data = fs.readFileSync('queue.json');
+//     queue = JSON.parse(data);
+// }
+
+function loadVisited() {
+    var query = News.find({}).select('url -_id');
+
+    query.exec(function (err, items) {
+        if (err) {
+            console.log(err);
+            return;
+        }
+        for (let item of items) {
+            visited.add(item.url);
+        }
+        newsCount = visited.size;
+    });
+}
+
+
+mongoose.connection.on("open", async function (err) {
+    // body of program in here
+    // await queue.addToQueue(seeds);
+    // items = await queue.getQueued(100);
+    // console.log(items);
+
+    loadVisited();
+
+    for (let seed of seeds) {
+        crawler.queue({
+            uri: seed,
+            depth: 0
+        });
+    }
+});
+
+//
+// var crawler;
+//
+//
+
+//
+// var NEWS_DATA_DIR = '/home/burhan/DATA/NEWS';
+//
+//
+// function save_news(data) {
+//     var root_dir = path.join(NEWS_DATA_DIR, data.source);
+//     var timestamp = Date.parse(data.date);
+//     var date = dateFormat('yyyy-MM-dd', new Date(timestamp));
+//
+//     var dir = path.join(root_dir, date);
+//     if (!fs.existsSync(dir)) {
+//         fs.mkdirSync(dir, {recursive: true});
+//     }
+//     var filename = path.join(dir, data.id + ".json");
+//     fs.writeFileSync(filename, JSON.stringify(data, null, 4));
+// }
+//
+//
+//
+
+//
+
+//
+//;
+//
+//
+// addToQueue(['https://www.prothomalo.com'], 0);
