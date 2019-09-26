@@ -14,12 +14,14 @@ const News = require('./models/news');
 
 const MAX_DEPTH = 3;
 const prothomAloPaser = require('./parsers/prothomalo');
+const banglaBdnews24Parser = require('./parsers/bangla.bdnews24');
 const seeds = ['https://www.prothomalo.com', 'https://bangla.bdnews24.com'];
 
-const valid_hosts = new Set(['www.prothomalo.com']);
+const valid_hosts = new Set(['www.prothomalo.com', 'bangla.bdnews24.com']);
 
 const parsers = {
-    "www.prothomalo.com": prothomAloPaser
+    "www.prothomalo.com": prothomAloPaser,
+    "bangla.bdnews24.com": banglaBdnews24Parser
 };
 
 let visited = new Set([]);
@@ -45,7 +47,7 @@ function addToQueue(links, depth) {
     // saveQueue();
 
     const used = process.memoryUsage().heapUsed / 1024 / 1024;
-    console.log(`Enqueued: ${n}, Depth: ${depth}, Queue: ${queue.size}, Visited: ${visited.size}, News: ${newsCount} Memory: ${Math.round(used * 100) / 100} MB`);
+    console.log(`Enqueued: ${n}, Depth: ${depth}, Queue: ${queue.size}, Visited: ${visited.size}, News: ${newsCount}, Memory: ${Math.round(used * 100) / 100} MB`);
 }
 
 function setVisited(link) {
@@ -154,15 +156,10 @@ mongoose.connection.on("open", async function (err) {
 });
 
 //
-// var crawler;
-//
-//
-
-//
 // var NEWS_DATA_DIR = '/home/burhan/DATA/NEWS';
 //
 //
-// function save_news(data) {
+// function save_news_local(data) {
 //     var root_dir = path.join(NEWS_DATA_DIR, data.source);
 //     var timestamp = Date.parse(data.date);
 //     var date = dateFormat('yyyy-MM-dd', new Date(timestamp));
@@ -174,14 +171,3 @@ mongoose.connection.on("open", async function (err) {
 //     var filename = path.join(dir, data.id + ".json");
 //     fs.writeFileSync(filename, JSON.stringify(data, null, 4));
 // }
-//
-//
-//
-
-//
-
-//
-//;
-//
-//
-// addToQueue(['https://www.prothomalo.com'], 0);
