@@ -10,9 +10,10 @@ const db = require('./db');
 // const queue = require('./queue');
 // const Link = require('./models/link');
 const News = require('./models/news');
+const logUpdate = require('log-update');
 
 
-const MAX_DEPTH = 4;
+const MAX_DEPTH = 1;
 const prothomAloPaser = require('./parsers/prothomalo');
 const banglaBdnews24Parser = require('./parsers/bangla.bdnews24');
 const seeds = ['https://bangla.bdnews24.com', 'https://www.prothomalo.com'];
@@ -26,9 +27,12 @@ const parsers = {
     "bangla.bdnews24.com": banglaBdnews24Parser
 };
 
+
 let visited = new Set([]);
 let queue = new Set([]);
 let newsCount = 0;
+let currentUrl;
+let currentDepth;
 
 
 async function is_crawled_news(link) {
@@ -58,8 +62,7 @@ async function addToQueue(links, depth) {
 
     // saveQueue();
 
-    const used = process.memoryUsage().heapUsed / 1024 / 1024;
-    console.log(`Enqueued: ${n}, Depth: ${depth}, Queue: ${queue.size}, Visited: ${visited.size}, News: ${newsCount}, Memory: ${Math.round(used * 100) / 100} MB`);
+    // console.log(`Enqueued: ${n}, Depth: ${depth}, Queue: ${queue.size}, Visited: ${visited.size}, News: ${newsCount}, `);
 }
 
 function setVisited(link) {
@@ -105,10 +108,14 @@ const crawler = new Crawler({
     maxConnections: 50,
     userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
     callback: function (error, res, done) {
-        console.log(this.uri);
+
         const currentLink = new URL(this.uri);
+
         const depth = res.options.depth;
         const id = res.options.id;
+
+        currentUrl = this.uri;
+        currentDepth = depth;
 
         if (error) {
             console.log(error)
@@ -205,3 +212,26 @@ mongoose.connection.on("open", async function (err) {
 //     var filename = path.join(dir, data.id + ".json");
 //     fs.writeFileSync(filename, JSON.stringify(data, null, 4));
 // }
+
+
+const frames = ['-', '\\', '|', '/'];
+let i = 0;
+
+
+setInterval(() => {
+    const frame = frames[i = ++i % frames.length];
+    const used = process.memoryUsage().heapUsed / 1024 / 1024;
+
+    logUpdate(`
+
+PROCESSING  : ${currentUrl}
+DEPTH       : ${currentDepth}
+QUEUED      : ${queue.size}
+VISITED     : ${visited.size}
+SAVED       : ${newsCount}
+MEMORY      : ${Math.round(used * 100) / 100} MB
+CRAWLING    : ${frame}
+
+`
+    );
+}, 500);
