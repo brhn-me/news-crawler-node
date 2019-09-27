@@ -12,12 +12,14 @@ const db = require('./db');
 const News = require('./models/news');
 
 
-const MAX_DEPTH = 3;
+const MAX_DEPTH = 4;
 const prothomAloPaser = require('./parsers/prothomalo');
 const banglaBdnews24Parser = require('./parsers/bangla.bdnews24');
-const seeds = ['https://www.prothomalo.com', 'https://bangla.bdnews24.com'];
+const seeds = ['https://bangla.bdnews24.com', 'https://www.prothomalo.com'];
 
 const valid_hosts = new Set(['www.prothomalo.com', 'bangla.bdnews24.com']);
+
+const blacklisted_exts = [".jpg", ".jpeg", ".png", ".gif", ".svg", ".css"];
 
 const parsers = {
     "www.prothomalo.com": prothomAloPaser,
@@ -28,19 +30,29 @@ let visited = new Set([]);
 let queue = new Set([]);
 let newsCount = 0;
 
-function addToQueue(links, depth) {
+
+async function is_crawled_news(link) {
+    return News.exists({url: link});
+}
+
+async function addToQueue(links, depth) {
     var n = 0;
     for (let link of links) {
         let id = utils.md5(link);
         if (!queue.has(link) && !visited.has(link)) {
-            queue.add(link);
-            crawler.queue({
-                id: id,
-                uri: link,
-                depth: depth,
-                priority: depth
-            });
-            n++;
+
+            var newsExist = await is_crawled_news(link);
+
+            if (!newsExist) {
+                queue.add(link);
+                crawler.queue({
+                    id: id,
+                    uri: link,
+                    depth: depth,
+                    priority: depth
+                });
+                n++;
+            }
         }
     }
 
@@ -59,20 +71,38 @@ function setVisited(link) {
 
 function getUniqueLinks(current_link, $) {
     var links = new Set([]);
-    $('a').each(function (i, el) {
-        var href = $(el).attr('href');
-        var link = new URL(href, current_link.href);
-        if (!valid_hosts.has(link.host)) {
-            return
-        }
-        links.add(normalizeUrl(link.href, {forceHttps: true, stripHash: true, stripWWW: false}));
-    });
+    try {
+        $('a').each(function (i, el) {
+            try {
+                var href = $(el).attr('href');
+                if (href) {
+                    var link = new URL(href, current_link.href);
+                    if (!valid_hosts.has(link.host)) {
+                        return
+                    }
+
+                    for (let ext in blacklisted_exts) {
+                        if (href.endsWith(ext)) {
+                            return;
+                        }
+                    }
+
+
+                    links.add(normalizeUrl(link.href, {forceHttps: true, stripHash: true, stripWWW: false}));
+                }
+            } catch (e) {
+                console.log(e);
+            }
+        });
+    } catch (e) {
+        console.log(e);
+    }
     return Array.from(links);
 }
 
 const crawler = new Crawler({
-    rateLimit: 1000,
-    maxConnections: 5,
+    rateLimit: 100,
+    maxConnections: 50,
     userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
     callback: function (error, res, done) {
         console.log(this.uri);
@@ -83,6 +113,10 @@ const crawler = new Crawler({
         if (error) {
             console.log(error)
         } else {
+            if (!res.headers['content-type'].includes("text/html")) {
+                return
+            }
+
             const links = getUniqueLinks(currentLink, res.$);
             if (depth < MAX_DEPTH) {
                 addToQueue(links, depth + 1);
@@ -145,7 +179,7 @@ mongoose.connection.on("open", async function (err) {
     // items = await queue.getQueued(100);
     // console.log(items);
 
-    loadVisited();
+    // loadVisited();
 
     for (let seed of seeds) {
         crawler.queue({

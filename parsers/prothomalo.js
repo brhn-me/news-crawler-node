@@ -30,6 +30,10 @@ const prothomAloPaser = (link, $) => {
             images.push($(el).attr('src'));
         });
 
+        if (!content || !title) {
+            return false
+        }
+
         data = {
             date: date,
             title: title,
