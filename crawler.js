@@ -13,18 +13,20 @@ const News = require('./models/news');
 const logUpdate = require('log-update');
 
 
-const MAX_DEPTH = 1;
+const MAX_DEPTH = 10;
 const prothomAloPaser = require('./parsers/prothomalo');
 const banglaBdnews24Parser = require('./parsers/bangla.bdnews24');
-const seeds = ['https://bangla.bdnews24.com', 'https://www.prothomalo.com'];
+const bdNews24Parser = require('./parsers/bdnews24');
+const seeds = ['https://bdnews24.com', 'https://bangla.bdnews24.com', 'https://www.prothomalo.com'];
 
-const valid_hosts = new Set(['www.prothomalo.com', 'bangla.bdnews24.com']);
+const valid_hosts = new Set(['bdnews24.com', 'bangla.bdnews24.com', 'prothomalo.com']);
 
 const blacklisted_exts = [".jpg", ".jpeg", ".png", ".gif", ".svg", ".css"];
 
 const parsers = {
     "www.prothomalo.com": prothomAloPaser,
-    "bangla.bdnews24.com": banglaBdnews24Parser
+    "bangla.bdnews24.com": banglaBdnews24Parser,
+    "bdnews24.com": bdNews24Parser
 };
 
 
@@ -104,8 +106,8 @@ function getUniqueLinks(current_link, $) {
 }
 
 const crawler = new Crawler({
-    rateLimit: 100,
-    maxConnections: 50,
+    rateLimit: 1000,
+    maxConnections: 10,
     userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36",
     callback: function (error, res, done) {
 
